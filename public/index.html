@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Piper TTS Streaming</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            font-size: 16px;
+            margin: 10px 0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+        }
+
+        button:disabled {
+            background: #ccc;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>German TTS (Piper Local)</h2>
+
+    <label for="voiceSelect">Выберите голос:</label>
+    <select id="voiceSelect">
+        <option value="karlsson-low">Karlsson (Low)</option>
+        <option value="eva_k-x-low">Eva (X-Low)</option>
+        <option value="ramona-low">Ramona (Low)</option>
+        <option value="thorsten-high">Thorsten (High)</option>
+        <option value="thorsten_emotional-medium">Thorsten (Emotional Medium)</option>
+    </select>
+
+    <textarea id="text">Hallo! Das ist ein Test der lokalen Sprachausgabe.</textarea>
+
+    <div class="controls">
+        <button id="playBtn" onclick="processTTS('play')">▶️ Play</button>
+        <button id="downBtn" onclick="processTTS('download')">⬇️ Download MP3</button>
+    </div>
+
+    <div id="status" class="status"></div>
+    <audio id="audio" controls></audio>
+
+    <script>
+        async function processTTS(mode) {
+            const text = document.getElementById('text').value;
+            const voice = document.getElementById('voiceSelect').value;
+            const status = document.getElementById('status');
+            const playBtn = document.getElementById('playBtn');
+            const downBtn = document.getElementById('downBtn');
+
+            if (!text) return alert("Введите текст");
+
+            try {
+                status.innerText = "Генерация...";
+                playBtn.disabled = true;
+                downBtn.disabled = true;
+
+                const response = await fetch('/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, voice })
+                });
+
+                if (!response.ok) throw new Error(await response.text());
+
+                // Читаем поток данных
+                const reader = response.body.getReader();
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                }
+
+                const blob = new Blob(chunks, { type: 'audio/mpeg' });
+                const url = URL.createObjectURL(blob);
+
+                if (mode === 'play') {
+                    const audio = document.getElementById('audio');
+                    audio.src = url;
+                    audio.play();
+                } else {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${voice}_${Date.now()}.mp3`;
+                    a.click();
+                }
+                status.innerText = "Готово!";
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Ошибка: " + err.message;
+            } finally {
+                playBtn.disabled = false;
+                downBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
